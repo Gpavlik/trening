@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Тренажер виживання для керівника</title>
+<style>
+body {
+  margin:0;
+  font-family:sans-serif;
+  display:flex;
+  height:100vh;
+}
+.bar {
+  width:255px;
+  background:#333;
+  color:#fff;
+  padding:10px;
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+}
+.sidebar {
+  width:250px;
+  background:#f0f0f0;
+  padding:10px;
+  box-sizing:border-box;
+  border-right:2px solid #ccc;
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:10px;
+}
+.workspace {
+  flex-grow:1;
+  background:#006400;
+  position:relative;
+  overflow:auto; /* дозволяємо скрол */
+}
+
+#workspace-content {
+  position:relative;
+  width:4000px;   /* велика площа */
+  height:4000px;
+}
+
+
+/* Елементи */
+.element {
+  padding:8px;
+  border:1px solid #999;
+  border-radius:4px;
+  cursor:grab;
+  text-align:center;
+  font-weight:bold;
+}
+.draggable {
+  position:absolute;
+  padding:10px;
+  border:2px solid #333;
+  border-radius:6px;
+  cursor:move;
+  color:#fff;
+  font-weight:bold;
+  z-index:1000;
+}
+
+/* Toolbar */
+.toolbar { width:200px; display:flex; gap:5px; margin-top:10px; flex-wrap:wrap; }
+.toolbar button { padding:5px 10px; cursor:pointer; }
+
+/* Sidebar */
+.sidebar .element {
+  width:40px; height:40px;
+  border-radius:6px;
+  border:2px solid #333;
+  text-indent:-9999px;
+}
+.sidebar .element[data-type^="employee"] { border-radius:50%; }
+
+/* Блоки */
+.draggable.block-red, .draggable.block-orange, .draggable.block-yellow,
+.draggable.block-green, .draggable.block-teal, .draggable.block-blue,
+.draggable.block-indigo, .draggable.block-purple, .draggable.block-pink,
+.draggable.block-brown {
+  width:190px; min-height:60px; border-radius:6px;
+}
+
+/* Фішки */
+.draggable.employee-green, .draggable.employee-blue,
+.draggable.employee-yellow, .draggable.employee-red {
+  width:190px; min-height:60px; border-radius:50%;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+}
+
+/* Кольори */
+.block-red { background:#f44336; }
+.block-orange { background:#ff9800; }
+.block-yellow { background:#ffeb3b; color:#000; }
+.block-green { background:#4caf50; }
+.block-teal { background:#009688; }
+.block-blue { background:#2196f3; }
+.block-indigo { background:#3f51b5; }
+.block-purple { background:#9c27b0; }
+.block-pink { background:#e91e63; }
+.block-brown { background:#795548; }
+
+.employee-green { background:#4caf50; }
+.employee-blue { background:#2196f3; }
+.employee-yellow { background:#ffeb3b; color:#000; }
+.employee-red { background:#f44336; }
+
+/* Кнопки */
+.arrow-btn, .rope-btn {
+  cursor:pointer;
+  font-size:18px;
+  padding:2px 6px;
+  margin:2px;
+  z-index:2500;
+}
+
+/* SVG-шари */
+#svgArrows, #svgRopes {
+  position:absolute;
+  top:0; left:0;
+  width: 4000px;; height: 4000px;;
+  pointer-events:none;
+}
+
+.arrow, .rope-green, .rope-yellow, .rope-red {
+  pointer-events:stroke;
+  cursor: pointer;
+}
+.arrow-hit, .rope-hit {
+  stroke: transparent;      /* невидимий шар */
+  stroke-width: 15;         /* товстий хітбокс */
+  cursor: pointer;
+}
+
+#svgArrows { z-index:1; }
+#svgRopes { z-index:2000; }
+
+.arrow {
+  stroke:black; stroke-width:2;
+  marker-end:url(#arrowhead);
+}
+.rope-green { stroke:rgb(0,255,0); stroke-width:2; fill:none; }
+.rope-yellow { stroke:rgb(255,255,0); stroke-width:2; fill:none; }
+.rope-red { stroke:rgb(255,60,60); stroke-width:2; fill:none; }
+
+/* Контекстне меню */
+.color-picker {
+  position:absolute;
+  background:#fff;
+  border:1px solid #333;
+  padding:5px;
+  display:flex;
+  gap:5px;
+  z-index:3000;
+}
+.color-square {
+  width:20px; height:20px;
+  cursor:pointer; border:1px solid #333;
+  z-index:3000;
+}
+.color-green { background:rgb(0, 255, 0); }
+.color-yellow { background:rgb(255, 255, 0); }
+.color-red { background:rgb(255, 60, 60); }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <div class="sidebar">
+      <!-- Блоки -->
+      <div class="element block-red" draggable="true" data-type="block-red">Кубик червоний</div>
+      <div class="element block-orange" draggable="true" data-type="block-orange">Кубик помаранчевий</div>
+      <div class="element block-yellow" draggable="true" data-type="block-yellow">Кубик жовтий</div>
+      <div class="element block-green" draggable="true" data-type="block-green">Кубик зелений</div>
+      <div class="element block-teal" draggable="true" data-type="block-teal">Кубик бірюзовий</div>
+      <div class="element block-blue" draggable="true" data-type="block-blue">Кубик синій</div>
+      <div class="element block-indigo" draggable="true" data-type="block-indigo">Кубик індиго</div>
+      <div class="element block-purple" draggable="true" data-type="block-purple">Кубик фіолетовий</div>
+      <div class="element block-pink" draggable="true" data-type="block-pink">Кубик рожевий</div>
+      <div class="element block-brown" draggable="true" data-type="block-brown">Кубик коричневий</div>
+      <br><br>
+      <!-- Фішки -->
+      <div class="element employee-green" draggable="true" data-type="employee-green">Фішка зелена</div>
+      <div class="element employee-blue" draggable="true" data-type="employee-blue">Фішка синя</div>
+      <div class="element employee-yellow" draggable="true" data-type="employee-yellow">Фішка жовта</div>
+      <div class="element employee-red" draggable="true" data-type="employee-red">Фішка червона</div>
+    </div>
+    <br>
+    <div class="toolbar">
+      <button id="undoBtn">Undo</button>
+      <button id="redoBtn">Redo</button>
+      <button id="clearBtn">Clear All</button>
+      <button id="saveBtn">Save</button>
+      <button id="loadBtn">Load</button>
+      <button id="tableBtn">Показати таблицю</button>
+      <button id="exportBtn">Експорт в Excel</button>
+    </div>
+  </div>
+
+  <div class="workspace" id="workspace">
+    <div id="workspace-content">
+      <h1 style="color: white;">Тренажер виживання для керівника</h1>
+      <p style="color: white;">Створюйте ситуації, додавайте блоки та фішки, з'єднуйте їх мотузками та стрілками. Зберігайте та завантажуйте свої сценарії.</p>
+
+      <!-- SVG для стрілок -->
+      <svg id="svgArrows">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="black"/>
+          </marker>
+        </defs>
+      </svg>
+      <svg id="svgRopes"></svg>
+      <!-- draggable елементи будуть додаватися сюди через JS -->
+    </div>
+  </div>
+  <div id="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; 
+    background:rgba(0,0,0,0.5); z-index:9999; justify-content:center; align-items:center;">
+  <div style="background:#fff; padding:20px; border-radius:8px; max-height:80%; overflow:auto; min-width:60%;">
+    <button onclick="closeModal()" style="float:right;">Закрити</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const sidebarElements = document.querySelectorAll('.element');
+const workspace = document.getElementById('workspace');
+const workspaceContent = document.getElementById('workspace-content');
+const svgArrows = document.getElementById('svgArrows');
+const svgRopes = document.getElementById('svgRopes');
+
+let connections = [];
+let history = [];
+let historyIndex = -1;
+let arrowStart = null;
+let ropeStart = null;
+let tempLine = null;
+
+
+function saveJSON() {
+  // зберігаємо HTML робочої області та масив connections
+  const data = {
+    workspace: workspaceContent.innerHTML,
+    connections: connections.map(c => ({
+      sourceLabel: c.source.dataset.label,
+      targetLabel: c.target.dataset.label,
+      lineClass: c.line.getAttribute("class")
+    }))
+  };
+
+  localStorage.setItem("trainerSave", JSON.stringify(data));
+  alert("Сценарій збережено!");
+}
+
+function loadJSON() {
+  const raw = localStorage.getItem("trainerSave");
+  if (!raw) {
+    alert("Немає збережених даних!");
+    return;
+  }
+
+  const data = JSON.parse(raw);
+
+  // відновлюємо HTML
+  workspaceContent.innerHTML = data.workspace;
+
+  // відновлюємо connections
+  connections = [];
+  data.connections.forEach(c => {
+    const source = [...workspaceContent.querySelectorAll("input.czpvr")]
+      .find(i => i.dataset.label === c.sourceLabel);
+    const target = [...workspaceContent.querySelectorAll("input.czpvr")]
+      .find(i => i.dataset.label === c.targetLabel);
+
+    if (source && target) {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("class", c.lineClass);
+      svgRopes.appendChild(path);
+      updateRope(path, source, target);
+      makeClickableRope(path);
+      colorInputsByRope(path, source, target);
+      connections.push({ source, target, line: path });
+    }
+  });
+
+  alert("Сценарій завантажено!");
+}
+// --- Історія ---
+function saveHistory() {
+  const snapshot = {
+    workspace: workspaceContent.innerHTML,
+    connections: connections.map(c => ({
+      sourceLabel: c.source.dataset.label,
+      targetLabel: c.target.dataset.label,
+      lineClass: c.line.getAttribute("class")
+    }))
+  };
+  history.push(snapshot);
+}
+function undo() {
+  if (history.length > 1) {
+    history.pop(); // прибираємо останній стан
+    const prev = history[history.length - 1];
+    workspaceContent.innerHTML = prev.workspace;
+    connections = [];
+    prev.connections.forEach(c => {
+      const source = [...workspaceContent.querySelectorAll("input.czpvr")]
+        .find(i => i.dataset.label === c.sourceLabel);
+      const target = [...workspaceContent.querySelectorAll("input.czpvr")]
+        .find(i => i.dataset.label === c.targetLabel);
+
+      if (source && target) {
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("class", c.lineClass);
+        svgRopes.appendChild(path);
+        updateRope(path, source, target);
+        makeClickableRope(path);
+        connections.push({ source, target, line: path });
+      }
+    });
+  }
+}
+
+function redo() { if (historyIndex < history.length - 1) { historyIndex++; workspace.innerHTML = history[historyIndex]; } }
+function clearAll() {
+  workspace.innerHTML = `
+    <h1>Тренажер виживання для керівника</h1>
+    <p>Створюйте ситуації, додавайте блоки та фішки, з'єднуйте їх мотузками та стрілками.</p>
+    <svg id="svgArrows" viewBox="0 0 2000 2000" preserveAspectRatio="none">
+      <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="black"/>
+        </marker>
+      </defs>
+    </svg>
+    <svg id="svgRopes" viewBox="0 0 2000 2000" preserveAspectRatio="none"></svg>`;
+  connections = [];
+  saveHistory();
+}
+
+// --- Центр елемента ---
+function getCenter(el) {
+  return {
+    x: el.offsetLeft + el.offsetWidth / 2,
+    y: el.offsetTop + el.offsetHeight / 2
+  };
+}
+// --- Центр інпуту ---
+function getInputCenter(inputEl) {
+  const rect = inputEl.getBoundingClientRect();
+  const wsRect = workspaceContent.getBoundingClientRect();
+  return {
+    x: rect.left - wsRect.left + rect.width / 2,
+    y: rect.top - wsRect.top + rect.height / 2
+  };
+}
+// --- Оновлення стрілки ---
+function updateLine(line, source, target) {
+  const src = getCenter(source);
+  const tgt = getCenter(target);
+  line.setAttribute("x1", src.x);
+  line.setAttribute("y1", src.y);
+  line.setAttribute("x2", tgt.x);
+  line.setAttribute("y2", tgt.y);
+}
+
+// --- Оновлення мотузки ---
+function updateRope(path, sourceInput, targetInput) {
+  const src = getInputCenter(sourceInput);
+  const tgt = getInputCenter(targetInput);
+  const mx = (src.x + tgt.x) / 2;
+  const my = (src.y + tgt.y) / 2 + 120;
+  const d = `M ${src.x} ${src.y} Q ${mx} ${my} ${tgt.x} ${tgt.y}`;
+  path.setAttribute("d", d);
+
+  // оновлюємо хіт-зону
+  const conn = connections.find(c => c.line === path);
+  if (conn && conn.hitZone) {
+    conn.hitZone.setAttribute("d", d);
+  }
+}
+
+// --- Тимчасова лінія ---
+function followMouse(e) {
+  if (!tempLine) return;
+
+  const wsRect = workspaceContent.getBoundingClientRect();
+  const x2 = e.clientX - wsRect.left;
+  const y2 = e.clientY - wsRect.top;
+
+  if (tempLine.tagName === "path") {
+    const src = getInputCenter(ropeStart);
+    const mx = (src.x + x2) / 2;
+    const my = (src.y + y2) / 2 + 120;
+    tempLine.setAttribute("d", `M ${src.x} ${src.y} Q ${mx} ${my} ${x2} ${y2}`);
+  }
+else {
+    const src = getCenter(arrowStart);
+    tempLine.setAttribute("x1", src.x);
+    tempLine.setAttribute("y1", src.y);
+    tempLine.setAttribute("x2", x2);
+    tempLine.setAttribute("y2", y2);
+  }
+} 
+
+// --- Кнопка стрілки ---
+function addArrowButton(el) {
+  const arrowBtn = document.createElement('button');
+  arrowBtn.textContent = '➡️';
+  arrowBtn.classList.add('arrow-btn');
+  arrowBtn.style.position = 'absolute';
+  arrowBtn.style.bottom = '2px';
+  arrowBtn.style.right = '2px';
+  el.appendChild(arrowBtn);
+
+  arrowBtn.onclick = () => {
+    if (!arrowStart) {
+      arrowStart = el;
+      tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      tempLine.classList.add('arrow');
+      svgArrows.appendChild(tempLine);
+      document.addEventListener('mousemove', followMouse);
+    } else {
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.classList.add('arrow');
+      svgArrows.appendChild(line);
+      connections.push({ line, source: arrowStart, target: el });
+      updateLine(line, arrowStart, el);
+      enableLineDeletion(line);
+      arrowStart = null;
+      if (tempLine) { tempLine.remove(); tempLine = null; }
+      document.removeEventListener('mousemove', followMouse);
+      saveHistory();
+    }
+  };
+}
+function createInput(labelText) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.classList.add("czpvr"); // позначаємо, що це інпут ЦЗПВР
+  input.dataset.label = labelText; // зберігаємо текст для зручності
+  return input;
+}
+
+function colorInputsByRope(path, sourceInput, targetInput) {
+  const ropeColor = path.getAttribute("stroke") || "green";
+  sourceInput.style.backgroundColor = ropeColor;
+  targetInput.style.backgroundColor = ropeColor;
+}
+function makeClickableRope(path) {
+  // одинарний клік — контекстне меню
+  path.addEventListener("click", ev => {
+    ev.preventDefault();
+    showRopeContextMenu(ev.pageX, ev.pageY, path);
+  });
+
+  // подвійний клік — видалення мотузки
+  path.addEventListener("dblclick", ev => {
+    ev.preventDefault();
+    path.remove();
+    const conn = connections.find(c => c.line === path);
+    if (conn) {
+      conn.source.style.backgroundColor = "";
+      conn.target.style.backgroundColor = "";
+    }
+    connections = connections.filter(c => c.line !== path);
+    saveHistory();
+  });
+}
+
+function showRopeContextMenu(x, y, ropePath) {
+  const oldMenu = document.querySelector('.color-picker');
+  if (oldMenu) oldMenu.remove();
+
+  const menu = document.createElement('div');
+  menu.classList.add('color-picker');
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+
+  const colors = [
+    { cls: 'color-green', ropeClass: 'rope-green', value: 'rgb(0,255,0)' },
+    { cls: 'color-yellow', ropeClass: 'rope-yellow', value: 'rgb(255,255,0)' },
+    { cls: 'color-red', ropeClass: 'rope-red', value: 'rgb(255,60,60)' }
+  ];
+
+  colors.forEach(c => {
+    const square = document.createElement('div');
+    square.classList.add('color-square', c.cls);
+
+    square.onclick = () => {
+      // прибираємо старі класи
+      ropePath.classList.remove('rope-green', 'rope-yellow', 'rope-red');
+      // додаємо новий клас
+      ropePath.classList.add(c.ropeClass);
+
+      // перефарбовуємо інпути
+      const conn = connections.find(conn => conn.line === ropePath);
+      if (conn) {
+        conn.source.style.backgroundColor = c.value;
+        conn.target.style.backgroundColor = c.value;
+      }
+
+      menu.remove();
+      saveHistory();
+    };
+
+    menu.appendChild(square);
+  });
+
+  document.body.appendChild(menu);
+
+  setTimeout(() => {
+    document.addEventListener('click', (ev) => {
+      if (!menu.contains(ev.target)) menu.remove();
+    }, { once: true });
+  }, 0);
+}
+
+
+
+// --- Кнопка мотузки ---
+function addRopeButton(inputEl) {
+  if (!inputEl.classList.contains("czpvr")) return;
+
+  const ropeBtn = document.createElement('button');
+  ropeBtn.textContent = '🪢';
+  ropeBtn.classList.add('rope-btn');
+  ropeBtn.style.marginLeft = '4px';
+  inputEl.insertAdjacentElement('afterend', ropeBtn);
+
+  ropeBtn.onclick = () => {
+  if (!ropeStart) {
+    // початок мотузки
+    ropeStart = inputEl;
+    tempLine = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    tempLine.classList.add('rope-green');
+    svgRopes.appendChild(tempLine);
+    document.addEventListener('mousemove', followMouse);
+  } else {
+    // перед створенням фінальної мотузки видаляємо tempLine
+    if (tempLine) {
+  tempLine.remove();
+  tempLine = null;
+  document.removeEventListener('mousemove', followMouse);
+}
+
+
+    // створюємо справжню мотузку
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.classList.add('rope-green');
+    svgRopes.appendChild(path);
+
+    // додаємо тільки фінальну лінію у connections
+    connections.push({ source: ropeStart, target: inputEl, line: path });
+    updateRope(path, ropeStart, inputEl);
+    makeClickableRope(path);
+
+    colorInputsByRope(path, ropeStart, inputEl);
+
+    ropeStart = null;
+    saveHistory();
+  }
+};
+}
+
+// --- Видалення ліній ---
+function enableLineDeletion(line) {
+  // Подвійний клік — видалення стрілки
+  line.addEventListener('dblclick', (ev) => {
+    ev.preventDefault();
+    line.remove();
+    connections = connections.filter(c => c.line !== line);
+    saveHistory();
+  });
+}
+
+
+function makeDraggable(el) {
+  el.onmousedown = function(ev) {
+    const shiftX = ev.clientX - el.offsetLeft;
+    const shiftY = ev.clientY - el.offsetTop;
+
+    function moveAt(pageX, pageY) {
+      const x = pageX - workspaceContent.offsetLeft - shiftX;
+      const y = pageY - workspaceContent.offsetTop - shiftY;
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+
+      // Оновлення зв’язків
+      connections.forEach(c => {
+        if (c.line.tagName === "line") {
+          if (c.source === el || c.target === el) {
+            updateLine(c.line, c.source, c.target);
+          }
+        } else {
+          if (el.contains(c.source) || el.contains(c.target)) {
+            updateRope(c.line, c.source, c.target);
+          }
+        }
+      });
+    }
+
+    function onMouseMove(ev) {
+      moveAt(ev.pageX, ev.pageY);
+    }
+
+    document.addEventListener('mousemove', onMouseMove);
+
+    function onMouseUp() {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      saveHistory();
+    }
+
+    // слухаємо mouseup глобально
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
+  el.ondragstart = () => false;
+}
+
+
+// --- Видалення елементів ---
+function addDeleteButton(el) {
+  const delBtn = document.createElement('button');
+  delBtn.textContent = '❌';
+  delBtn.style.position = 'absolute';
+  delBtn.style.top = '2px';
+  delBtn.style.right = '2px';
+  delBtn.style.background = 'transparent';
+  delBtn.style.border = 'none';
+  delBtn.style.cursor = 'pointer';
+  delBtn.style.fontSize = '16px';
+  delBtn.style.zIndex = '1000';
+
+  delBtn.onclick = (ev) => {
+    ev.stopPropagation();
+    connections = connections.filter(c => {
+      if (c.source === el || c.target === el || el.contains(c.source) || el.contains(c.target)) {
+        c.line.remove();
+        return false;
+      }
+      return true;
+    });
+    el.remove();
+    saveHistory();
+  };
+
+  el.appendChild(delBtn);
+}
+
+// --- Drag&Drop із сайдбару ---
+sidebarElements.forEach(el => {
+  el.addEventListener('dragstart', e => {
+    e.dataTransfer.setData('type', el.dataset.type);
+    e.dataTransfer.effectAllowed = "copy";
+  });
+});
+
+workspace.addEventListener('dragover', e => e.preventDefault());
+
+workspace.addEventListener('drop', e => {
+  e.preventDefault();
+  const type = e.dataTransfer.getData('type');
+  if (!type) return;
+
+  const wsRect = workspaceContent.getBoundingClientRect();
+  const newEl = document.createElement('div');
+  newEl.classList.add('draggable', type);
+  newEl.style.left = e.clientX - wsRect.left + 'px';
+  newEl.style.top = e.clientY - wsRect.top + 'px';
+
+  const nameInput = document.createElement('input');
+  nameInput.placeholder = "Назва...";
+  newEl.appendChild(nameInput);
+  addRopeButton(nameInput); // кнопка мотузки біля інпуту
+
+  addDeleteButton(newEl);
+  addArrowButton(newEl); // кнопка стрілки
+
+  ['Ц','З','П','В','Р'].forEach(label => {
+  const btn = document.createElement('div');
+  btn.classList.add('circle-btn');
+  btn.textContent = label;
+  newEl.appendChild(btn);
+
+  const listContainer = document.createElement('div');
+  listContainer.classList.add('list-container');
+  newEl.appendChild(listContainer);
+
+  btn.onclick = () => {
+    listContainer.style.display = listContainer.style.display === 'block' ? 'none' : 'block';
+  };
+
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '+';
+  addBtn.onclick = () => {
+    const item = document.createElement('div');
+    item.classList.add('list-item');
+    const input = document.createElement('input');
+    input.placeholder = `${label}...`;
+
+    // позначаємо, що це інпут ЦЗПВР
+    input.classList.add('czpvr');  
+    input.dataset.label = label;  
+
+    item.appendChild(input);
+    listContainer.appendChild(item);
+
+    addRopeButton(input); // тепер кнопка з’явиться
+  };
+  listContainer.appendChild(addBtn);
+});
+
+  document.getElementById('workspace-content').appendChild(newEl);
+  makeDraggable(newEl);
+  addDeleteButton(newEl);
+  addArrowButton(newEl); // кнопка стрілки
+
+  saveHistory();
+});
+
+function renderConnectionsTable() {
+  const table = document.createElement("table");
+  table.style.borderCollapse = "collapse";
+  table.style.margin = "20px";
+  table.style.background = "#fff";
+
+  // заголовки
+  const headerRow = document.createElement("tr");
+  ["Назва блок", "Назва фішка", "Інпут блока", "Інпут фішка", "Колір мотузки", "Тип співробітника", "Статус процесу"].forEach(text => {
+    const th = document.createElement("th");
+    th.textContent = text;
+    th.style.border = "1px solid #333";
+    th.style.padding = "5px 10px";
+    th.style.background = "#ddd";
+    headerRow.appendChild(th);
+  });
+  table.appendChild(headerRow);
+
+  // рядки для кожного зв’язку
+  connections.forEach(conn => {
+    const row = document.createElement("tr");
+
+    const blockEl = conn.source.closest(".draggable");
+    const fishkaEl = conn.target.closest(".draggable");
+
+    const blockName = blockEl ? (blockEl.querySelector("input")?.value || "—") : "—";
+    const fishkaName = fishkaEl ? (fishkaEl.querySelector("input")?.value || "—") : "—";
+
+    const sourceLabel = conn.source.dataset.label || "—";
+    const targetLabel = conn.target.dataset.label || "—";
+
+    // статус процесу за мотузкою
+    let color = "—", processStatus = "—";
+    if (conn.line.classList.contains("rope-green")) { color = "зелений"; processStatus = "Процес іде нормально"; }
+    if (conn.line.classList.contains("rope-yellow")) { color = "жовтий"; processStatus = "Процес потребує уваги"; }
+    if (conn.line.classList.contains("rope-red")) { color = "червоний"; processStatus = "Процес має великі ризики"; }
+
+    // тип співробітника за кольором фішки
+    let employeeType = "—";
+    if (conn.target.classList.contains("fishka-green")) employeeType = "Мотивований — некомпетентний";
+    if (conn.target.classList.contains("fishka-yellow")) employeeType = "Мотивований — компетентний";
+    if (conn.target.classList.contains("fishka-blue")) employeeType = "Немотивований — компетентний";
+    if (conn.target.classList.contains("fishka-red")) employeeType = "Немотивований — некомпетентний";
+
+    [blockName, fishkaName, sourceLabel, targetLabel, color, employeeType, processStatus].forEach(text => {
+      const td = document.createElement("td");
+      td.textContent = text;
+      td.style.border = "1px solid #333";
+      td.style.padding = "5px 10px";
+      row.appendChild(td);
+    });
+
+    table.appendChild(row);
+  });
+
+  const oldTable = document.getElementById("connectionsTable");
+  if (oldTable) oldTable.remove();
+  table.id = "connectionsTable"; 
+  workspaceContent.appendChild(table);
+}
+
+function exportConnectionsToExcel() {
+  const rows = [["Назва блок","Назва фішка","Інпут блока","Інпут фішка","Колір мотузки","Тип співробітника","Статус процесу"]];
+  
+  connections.forEach(conn => {
+    const blockEl = conn.source.closest(".draggable");
+    const fishkaEl = conn.target.closest(".draggable");
+
+    const blockName = blockEl ? (blockEl.querySelector("input")?.value || "—") : "—";
+    const fishkaName = fishkaEl ? (fishkaEl.querySelector("input")?.value || "—") : "—";
+    const sourceLabel = conn.source.dataset.label || "—";
+    const targetLabel = conn.target.dataset.label || "—";
+
+    let color = "—", processStatus = "—";
+    if (conn.line.classList.contains("rope-green")) { color = "зелений"; processStatus = "Процес іде нормально"; }
+    if (conn.line.classList.contains("rope-yellow")) { color = "жовтий"; processStatus = "Процес потребує уваги"; }
+    if (conn.line.classList.contains("rope-red")) { color = "червоний"; processStatus = "Процес має великі ризики"; }
+
+    let employeeType = "—";
+    if (conn.target.classList.contains("fishka-green")) employeeType = "Мотивований — некомпетентний";
+    if (conn.target.classList.contains("fishka-yellow")) employeeType = "Мотивований — компетентний";
+    if (conn.target.classList.contains("fishka-blue")) employeeType = "Немотивований — компетентний";
+    if (conn.target.classList.contains("fishka-red")) employeeType = "Немотивований — некомпетентний";
+
+    rows.push([blockName, fishkaName, sourceLabel, targetLabel, color, employeeType, processStatus]);
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "Connections");
+
+  XLSX.writeFile(wb, "connections.xlsx");
+}
+function openConnectionsTableInModal() {
+  let html = "<table border='1' cellpadding='5' cellspacing='0' style='border-collapse:collapse; width:100%;'>";
+  html += "<tr><th>Назва блок</th><th>Назва фішка</th><th>Інпут блока</th><th>Інпут фішка</th><th>Колір мотузки</th><th>Тип співробітника</th><th>Статус процесу</th></tr>";
+
+  connections.forEach(conn => {
+    const blockEl = conn.source.closest(".draggable");
+    const fishkaEl = conn.target.closest(".draggable");
+
+    const blockName = blockEl ? (blockEl.querySelector("input")?.value || "—") : "—";
+    const fishkaName = fishkaEl ? (fishkaEl.querySelector("input")?.value || "—") : "—";
+    const sourceLabel = conn.source.dataset.label || "—";
+    const targetLabel = conn.target.dataset.label || "—";
+
+    let color = "—", processStatus = "—";
+    if (conn.line.classList.contains("rope-green")) { color = "зелений"; processStatus = "Процес іде нормально"; }
+    if (conn.line.classList.contains("rope-yellow")) { color = "жовтий"; processStatus = "Процес потребує уваги"; }
+    if (conn.line.classList.contains("rope-red")) { color = "червоний"; processStatus = "Процес має великі ризики"; }
+
+    let employeeType = "—";
+    if (conn.target.classList.contains("fishka-green")) employeeType = "Мотивований — некомпетентний";
+    if (conn.target.classList.contains("fishka-yellow")) employeeType = "Мотивований — компетентний";
+    if (conn.target.classList.contains("fishka-blue")) employeeType = "Немотивований — компетентний";
+    if (conn.target.classList.contains("fishka-red")) employeeType = "Немотивований — некомпетентний";
+
+    html += `<tr><td>${blockName}</td><td>${fishkaName}</td><td>${sourceLabel}</td><td>${targetLabel}</td><td>${color}</td><td>${employeeType}</td><td>${processStatus}</td></tr>`;
+  });
+
+  html += "</table>";
+
+  document.getElementById("modalContent").innerHTML = html;
+  document.getElementById("modal").style.display = "flex";
+}
+
+function closeModal() {
+  document.getElementById("modal").style.display = "none";
+}
+
+// кнопка в тулбарі
+document.getElementById('exportBtn').onclick = exportConnectionsToExcel;
+document.getElementById('tableBtn').onclick = openConnectionsTableInModal;
+document.getElementById('undoBtn').onclick = undo;
+document.getElementById('redoBtn').onclick = redo;
+document.getElementById('clearBtn').onclick = clearAll;
+document.getElementById('saveBtn').onclick = saveJSON;
+document.getElementById('loadBtn').onclick = loadJSON;
+</script>
+</body>
+</html>
